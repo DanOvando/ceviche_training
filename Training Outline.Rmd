@@ -3,9 +3,11 @@ title: "Teaching Objectives for Peruvian Stock Assessment Training"
 author: "Dan Ovando"
 date: "10/28/2016"
 output:
-  word_document: default
+  html_document:
+    toc: yes
+    toc_float: yes
   pdf_document: default
-  html_document: default
+  word_document: default
 subtitle: To be held Oct 2016
 ---
 # Objectives

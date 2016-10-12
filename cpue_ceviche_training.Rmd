@@ -1,13 +1,205 @@
 ---
-title: "R Notebook"
+title: "CPUE Training"
+author: "Dan Ovando"
+date: "October 11, 2016"
 output: 
   html_notebook:
     toc: yes
     toc_float: yes
+  html_document:
+    toc: yes
+    toc_float: yes
 ---
 
-# Hello
+```{r, message=F, warning=F, include = F}
+library(tidyverse)
+library(forcats)
+library(stringr)
+library(scales)
+library(broom)
+```
 
-# Another 
 
-## There
+# La estandarización de CPUE
+
+CPUE es una de las metricos mas comunes para estimando el estado de poblacíones de pesces. La idea claramente es basico: si estas capturando menos pescado con el mismo esfuerzo, probablemte hay menos peses para capturar. 
+
+Pero, es util pensar un poco mas en lo que nos dice CPUE en realidad. 
+
+Pensamos en una ecuación basico de captura: 
+
+$$ captura = biomasa * esfuerzo * capturabilidad $$
+
+Por ejemplo, si hay 100 peses en un lago (*biomasa*), pesco por una hora con pintado (*esfuerzo*), y tengo una 10% probablidad de capturar qualquir peses encuentran my carnada sobre la hora (*capturabilidad*), voy a capturar 10 peses. Si le poblacion de peses baja a 50, entonces voy a capturar 5 peses. 
+
+Por esta relacion, podemos decir que
+
+$$ \frac{capture}{esfuerzo} = biomass * capturabilidad $$
+
+o mas clara...
+
+$$ CPUE = qB  $$
+
+Entonces si B sube o baja, *CPUE* sube o baja. La problem aqui es que si tenemos ańos de *CPUE* datos, y tratamos de inferar el estado de la poblaciion (*B*) por la tendencias del *CPUE*. 
+
+Se puede ver que si CPUE cambia sobre tiempo, hay dos posibildades que pueden explicar esto: biomasa esta cambiando **o** *q* esta cambiando. 
+
+## Ejemplo
+
+```{r CPUE ejemplo}
+
+fleets <- data_frame(effort = 10, q = 1, fleet = c('a','b'))
+
+popfun <- function(r = 0.2,K = 1000,effort = 5,q = 0.01,qcreep = 1, years = 20){
+  
+  b <-  rep(NA, years)
+  
+  qseries <- rep(NA, years)
+  
+  catch <- rep(NA, years)
+  
+  fleet_a <- rep(NA, years)
+  
+  fleet_b <- rep(NA, years)
+  
+  b[1] <- K
+  
+  qseries[1] <- q
+  
+  for (t in 2:years) {
+  catch[t - 1] <- b[t - 1] * (effort * qseries[t - 1]  +  effort * q)
+  
+  fleet_a[t - 1] <-
+  catch[t - 1] * (effort * qseries[t - 1]) / (effort * qseries[t - 1]  +  effort *
+  q)
+  
+  fleet_b[t - 1] <-
+  catch[t - 1] * (effort * q) / (effort * qseries[t - 1]  +  effort * q)
+  
+  b[t] <- b[t - 1] + b[t - 1] * r * (1 - b[t - 1] / K) -  catch[t - 1]
+  
+  qseries[t] = qseries[t - 1] * qcreep
+  
+  }
+  
+  out <- data_frame(
+  b = b,
+  q = qseries,
+  r = r,
+  K = K,
+  catch = catch,
+  cpue = catch / effort,
+  fleet_a = fleet_a,
+  fleet_b = fleet_b,
+  year = 1:years,
+  effort = effort
+  ) %>% 
+    gather(fleet,fleet_catch, fleet_a, fleet_b) %>% 
+    mutate(fleet_cpue = fleet_catch/effort, fleet_q = fleet_cpue / b)
+  return(out)
+  
+}
+
+nocreep <- popfun() %>% 
+  mutate(creep = 'none')
+
+somecreep <- popfun(qcreep = 1.2) %>% 
+  mutate(creep = 'some')
+
+cpue_example <- nocreep %>% 
+  bind_rows(somecreep)
+
+
+cpue_example %>% 
+  select(year,fleet_cpue,fleet,creep) %>% 
+  ggplot(aes(year,fleet_cpue, color = fleet, linetype = fleet)) +
+  geom_line(size = 1.5) + 
+  facet_wrap(~creep)
+
+
+cpue_example %>% 
+  group_by(year, creep) %>% 
+  summarise(biomass = mean(b, na.rm = T), mean_cpue = mean(fleet_cpue, na.rm = T),
+            median_cpue = median(fleet_cpue, na.rm = T)) %>% 
+  gather(metric,value, biomass,mean_cpue) %>% 
+  group_by(creep, metric) %>%
+  mutate(value = value/value[year == 1]) %>% 
+  ggplot(aes(year,value, color = metric, linetype = metric)) +
+  geom_line(size = 1.5) + 
+  facet_wrap(~creep) + 
+  scale_y_continuous(name = 'Porcentaje de nivel inicial', labels = percent)
+  
+
+```
+
+
+Como podemos coregir esto?
+
+# Usando regression para estandarizacion 
+
+```{r}
+
+cpue_example <- cpue_example %>% 
+  mutate(log_cpue = log(fleet_cpue))
+
+nocreep_reg <- lm(log_cpue ~ factor(year), data = cpue_example %>% filter(creep == 'none'))
+
+creep_reg <- lm(log_cpue ~ factor(year) , data = cpue_example %>% filter(creep == 'some'))
+
+full_creep_reg <- lm(log_cpue ~ factor(year) + fleet, data = cpue_example %>% filter(creep == 'some'))
+
+
+summary(nocreep_reg)
+
+summary(creep_reg)
+
+summary(full_creep_reg)
+
+
+termfun <- function(x) {
+  
+  out = as.numeric(paste(x, collapse = ''))
+  
+  return(out)
+}
+
+  tidy_nocreep <- tidy(nocreep_reg) %>% 
+  mutate(year_term = str_detect(term,'year')) %>% 
+  mutate(trans_term = exp(estimate + std.error^2/2)) %>% 
+  filter(year_term == T) %>% 
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+         year = map_dbl(year,termfun)) 
+  
+  
+  tidy_creep <- tidy(creep_reg) %>% 
+  mutate(year_term = str_detect(term,'year')) %>% 
+  mutate(trans_term = exp(estimate + std.error^2/2)) %>% 
+  filter(year_term == T) %>% 
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+         year = map_dbl(year,termfun))
+  
+   tidy_fullcreep <-  tidy(full_creep_reg) %>% 
+  mutate(year_term = str_detect(term,'year')) %>% 
+  mutate(trans_term = exp(estimate + std.error^2/2)) %>% 
+  filter(year_term == T) %>% 
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+         year = map_dbl(year,termfun),
+         rel_trans_term = trans_term/trans_term[year == min(year)])
+
+ cpue_example %>% 
+   filter(creep == 'some') %>% 
+  group_by(year, creep) %>% 
+  summarise(biomass = mean(b, na.rm = T), mean_cpue = mean(fleet_cpue, na.rm = T),
+            median_cpue = median(fleet_cpue, na.rm = T)) %>% 
+  gather(metric,value, biomass,mean_cpue) %>% 
+  group_by(creep, metric) %>%
+  mutate(value = value/value[year == 1]) %>% 
+  ggplot(aes(year,value)) +
+  geom_line(size = 1.5, aes(color = metric, linetype = metric)) + 
+  facet_wrap(~creep) + 
+  scale_y_continuous(name = 'Porcentaje de nivel inicial', labels = percent) +
+   geom_point(data = tidy_fullcreep, aes(year,rel_trans_term))
+  
+   
+```
+
