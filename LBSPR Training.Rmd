@@ -1,0 +1,150 @@
+---
+title: "LBSPR"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+```
+
+# Usando Tamaños para Evaluaciones de Pesquerias
+
+Shiny illustration if you can hack it
+
+# Length Based SPR
+
+```{r, eval=F}
+
+devtools::install_github('AdrianHordyk/LBSPR', build_vignettes = T)
+```
+
+
+```{r}
+
+library(LBSPR)
+library(shiny)
+library(tidyverse)
+library(stringr)
+library(scales)
+library(gridExtra)
+
+simfun <- function(FM = 0, SL50 = 50, SL95 = 65) {
+  
+MyPars <- new("LB_pars")
+
+MyPars@Linf <- 100 
+MyPars@L50 <- 66 
+MyPars@L95 <- 70
+MyPars@MK <- 1.5 
+
+MyPars@SL50 <- MyPars@Linf * (SL50/100)
+MyPars@SL95 <- MyPars@Linf * (SL95/100)
+MyPars@FM <- FM
+MyPars@BinWidth <- 5
+
+MySim <- LBSPRsim(MyPars)
+
+
+spr_plot <- MySim@SPR %>% 
+  as_data_frame() %>% 
+ggplot() + 
+  geom_bar(aes(0,value, fill = value),stat = 'identity', alpha = 0.75) +
+    geom_bar(data = data_frame(0,val = 1), aes(0,val), stat = 'identity', color = 'black', fill = 'transparent') +
+  scale_fill_gradient2(guide = F, low = '#ED4209', mid = 'white', high = '#5CA3E6', midpoint = 0.4, limits = c(0,1)) + 
+  scale_y_continuous(name = 'SPR', labels = percent, limits = c(0,1)) + 
+  geom_hline(aes(yintercept = 0)) + 
+  theme_gray(base_size = 24) + 
+  theme(axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+  
+
+len_plot <- MySim@pLPop %>% 
+  as_data_frame() %>% 
+  gather('var','value',-LMids) %>% 
+    filter(str_detect(var,'Pop')) %>% 
+    ggplot(aes(LMids,value)) + 
+  geom_vline(aes(xintercept = MyPars@L50), linetype = 'longdash') + 
+    geom_area(aes(fill = var), alpha = 0.75, position = 'dodge',
+              color = 'black') + 
+  xlab("Tamaño (cm)") + 
+  scale_y_continuous(labels = percent, name = 'Porcentaje de Poblacion', limits = c(0,.2)) + 
+    scale_fill_brewer(palette = 'Dark2', name = '', labels = c('Con Pesca','Sin Pesca')) + 
+    theme_gray(base_size = 24)
+
+
+lay_mat <- matrix(c(1,2,2,2), nrow = 1, ncol = 4)
+
+  grid.arrange(spr_plot,len_plot, layout_matrix = lay_mat)
+}
+
+
+inputPanel(
+
+  sliderInput(
+  "fm_adjust",
+  label = "Mortalidad por Pesca",
+  min = 0,
+  max = 2,
+  value = 1,
+  step = 0.2
+  ),
+
+  sliderInput(
+  'fish_select',
+  'Selectividad Pesquero (% de Tamaño Maximo)',
+  min = 0,
+  max = 100,
+  value = c(39, 40),
+  step = 0.5,
+  pre = '%'
+  )
+  )
+
+renderPlot({
+
+  simfun(FM = input$fm_adjust,SL50 = input$fish_select[1],  SL95 = input$fish_select[2])
+
+
+})
+
+```
+
+
+
+## Reintroducion a SPR
+
+## Que son las cosas que cambian SPR?
+
+## La idea detras de LBSPR
+
+Assumptions!
+
+# El `lbspr` Paquete
+
+Downloading
+
+Using
+
+Etc
+
+## Ejemplos de LBSPR
+
+## Ejercisios
+
+Use LBSPR to make fake data
+
+USE LBSPR to fit the model
+
+Examine outputs
+
+# Usando LBSPR
+
+## Examine Datos
+
+Pull in and plot length data. Discussion of whats in whats out
+
+## Apply LBSPR to Datos
+
+# Discuss!

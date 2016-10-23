@@ -36,7 +36,9 @@ pres_theme <-theme_bw(base_size = 16, base_family = 'Helvetica')
 
 # Estandarización de CPUE
 
-CPUE es una de las métricos mas comunes para estimando el estado de poblaciones de peces. La idea claramente es básico: si estas capturando menos pescado con el mismo esfuerzo, probablemente hay menos peses para capturar.
+CPUE es una de las métricos mas comunes para estimando el estado de poblaciones de peces. 
+
+La idea claramente es básico: si estas capturando menos pescado con el mismo esfuerzo, probablemente hay menos peses para capturar.
 
 Pero, es útil pensar un poco mas en lo que nos dice CPUE en realidad.
 
@@ -54,9 +56,13 @@ o mas clara...
 
 $$ CPUE = qB  $$
 
-Entonces si B sube o baja, *CPUE* sube o baja. La problema aquí es que si tenemos ańos de *CPUE* datos, y tratamos de inferir el estado de la población (*B*) por la tendencias del *CPUE*.
+Entonces si B sube o baja, *CPUE* sube o baja. 
 
-Se puede ver que si CPUE cambia sobre tiempo, hay dos posibilidades que pueden explicar esto: biomasa esta cambiando **o** *q* esta cambiando.
+La problema aquí es que si tenemos ańos de *CPUE* datos, y tratamos de inferir el estado de la población (*B*) por la tendencias del *CPUE*.
+
+Se puede ver que si CPUE cambia sobre tiempo, hay dos posibilidades que pueden explicar esto: 
+
+**biomasa esta cambiando **o** *q* esta cambiando**
 
 ## Ejemplo
 
@@ -161,7 +167,13 @@ En este caso, la abilidad de las flotas son constantes
 
 ```
 
-Pero, suponga que hay dos flotas, una artesanal y otro comercial. Sobre tiempo, la flota artesanal use la misma tecnología. Pero, la flota comercial cada año usa un poco de sus ganancias para comprar mejores barcos, mejores redes, etc. El resultado, la flota comercial cada año mejora su capacidad de pesca:
+Pero, suponga que hay dos flotas, una artesanal y otro comercial. 
+
+Sobre tiempo, la flota artesanal use la misma tecnología. 
+
+Pero, la flota comercial cada año usa un poco de sus ganancias para comprar mejores barcos, mejores redes, etc. 
+
+El resultado, **la flota comercial cada año mejora su capacidad de pesca**
 
 
 ```{r}
@@ -204,9 +216,15 @@ Como podemos corregir esto?
 
 ## Usando Regresión para Estandarización
 
-El proceso de "estandarización" nos puede ayudar con este problema. El objetivo de estandarización es de controlar por factores como tecnología que podrían cesgar CPUE, y sacar la señal verdadero de la población en CPUE.
+El proceso de "estandarización" nos puede ayudar con este problema. 
 
-Suponga que no sabemos exactamente que esta pasando con este cambio de tecnología. Pero, sabemos que hay dos flotas, y uno tiene mejor tecnología del otro. Podemos controlar por esto, y ver que este proceso mejora nuestro habilidad de usar CPUE pare monitorear biomasa.
+El objetivo de estandarización es de controlar por factores como tecnología que podrían cesgar CPUE, y sacar la señal verdadero de la población en CPUE.
+
+Suponga que no sabemos exactamente que esta pasando con este cambio de tecnología. 
+
+Pero, sabemos que hay dos flotas, y uno tiene mejor tecnología del otro. 
+
+Podemos controlar por esto, y ver que este proceso mejora nuestro habilidad de usar CPUE pare monitorear biomasa.
 
 ```{r}
 
@@ -328,8 +346,9 @@ Datos ordenados tienen una filosofía básico:
 
 **Cada columna es un tipo de datos, cada fila es una observación**
 
-Esto no sueno muy complicado, pero es muy poderoso
+![](tidy.jpg)
 
+Esto no sueno muy complicado, pero es muy poderoso
 
 ```{r,echo=T}
 
