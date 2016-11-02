@@ -1,0 +1,171 @@
+---
+title: "Explore CPUE"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(forcats)
+library(gridExtra)
+library(stringr)
+library(broom)
+
+termfun <- function(x) {
+
+  out = as.numeric(paste(x, collapse = ''))
+
+  return(out)
+}
+```
+
+
+```{r}
+chita_cpue <- read.csv(file = 'Chita_CPUE_2001_2015.csv', stringsAsFactors = F) %>%
+  as_data_frame() %>% 
+  filter(str_detect(Gear, 'CORTINA')) #%>% 
+  # filter(!(Vessel %in% c('PERSONA', 'ZAPATO','NO DEFINIDO ')))
+
+chita_cpue
+
+pres_theme <-theme_bw(base_size = 16, base_family = 'Helvetica')
+
+
+```
+```{r, fig.height=15, fig.width=8}
+
+chita_cpue %>% 
+  group_by(Year,Gear) %>% 
+  summarise(median_cpue = median(Chita_kg)) %>% 
+  ggplot(aes(Year, median_cpue)) + 
+  geom_line() + 
+  facet_wrap(~Gear, scales = 'free_y') + 
+  pres_theme
+
+```
+
+
+```{r}
+
+chita_cpue <- chita_cpue %>% 
+  mutate(cpue_per_fisher = Chita_kg / No_Fishers,
+         cpue_per_trip = Chita_kg)
+
+reg_per_fisher <- lm(log(cpue_per_fisher) ~ factor(Year)  + Location  + Dist_coast + Percent_Chita._actual + 
+             factor(Month), data = chita_cpue)
+
+reg_per_trip <- lm(log(cpue_per_trip) ~ factor(Year)  + Location  + Dist_coast + Percent_Chita._actual + 
+             factor(Month), data = chita_cpue)
+
+# dreg <- lm(log(cpue) ~ factor(Year) + Dist_coast + Vessel + Gear + Location + Percent_Chita._actual, data = chita_cpue)
+
+summary(reg_per_fisher)
+
+dreg_coefs <- reg_per_fisher %>%
+  tidy()
+
+dreg_coefs <- dreg_coefs %>%
+  bind_cols(confint_tidy(reg_per_fisher))
+
+abundancia_per_fisher <- dreg_coefs %>%
+  filter(str_detect(term,'Year')) %>%
+    mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+          year = map_dbl(year,termfun)) %>%
+  ungroup() %>%
+  mutate(trans_est = exp(estimate + std.error^2/2), trans_lower = exp(conf.low + std.error^2/2), trans_upper = exp(conf.high + std.error^2/2 )) %>%
+  ungroup() %>%
+  mutate(rel_est = trans_est / trans_est[year == min(year)] - 1) %>% 
+  mutate(cpue_type = 'per fisher')
+
+
+dreg_coefs <- reg_per_trip %>%
+  tidy()
+
+dreg_coefs <- dreg_coefs %>%
+  bind_cols(confint_tidy(reg_per_trip))
+
+abundancia_per_trip <- dreg_coefs %>%
+  filter(str_detect(term,'Year')) %>%
+    mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+          year = map_dbl(year,termfun)) %>%
+  ungroup() %>%
+  mutate(trans_est = exp(estimate + std.error^2/2), trans_lower = exp(conf.low + std.error^2/2), trans_upper = exp(conf.high + std.error^2/2 )) %>%
+  ungroup() %>%
+  mutate(rel_est = trans_est / trans_est[year == min(year)] - 1) %>% 
+  mutate(cpue_type = 'per trip')
+
+abundancia <- abundancia_per_trip %>% 
+  bind_rows(abundancia_per_fisher)
+
+
+```
+
+```{r}
+abundancia %>%
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+          year = map_dbl(year,termfun)) %>%
+  ggplot(aes(color = cpue_type)) +
+  geom_pointrange(aes(year,estimate,ymin = conf.low, ymax = conf.high)) +
+  ylab('Abundancia') +
+  xlab('Año') + 
+  pres_theme
+
+
+```
+
+```{r}
+
+cpue_trend <- chita_cpue %>%
+  ungroup() %>%
+  group_by(Year) %>%
+  summarise(median_cpue = median(cpue_per_fisher, na.rm = T)) %>%
+          mutate(  delta_cpue = median_cpue / median_cpue[Year == min(Year) + 1] - 1)
+
+abundancia %>%
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+          year = map_dbl(year,termfun)) %>%
+  ggplot() +
+  geom_line(aes(year,rel_est, color = cpue_type), size = 2) +
+  # geom_point( data = cpue_trend, aes(Year,delta_cpue, color = 'Observado'), size = 2) +
+  ylab('Abundancia') +
+  xlab('Año') +
+  scale_fill_discrete(name = 'Fuente') + 
+  pres_theme
+
+```
+```{r}
+cpue_trend <- chita_cpue %>%
+  ungroup() %>%
+  group_by(Year) %>%
+  summarise(median_cpue = median(cpue_per_fisher, na.rm = T)) %>%
+          mutate(  delta_cpue = median_cpue / median_cpue[Year == min(Year) + 1] - 1)
+
+abundancia %>%
+  filter(cpue_type == 'per trip') %>% 
+  mutate(year = str_extract_all(term,'[\\d]', simplify = F),
+          year = map_dbl(year,termfun)) %>%
+  ggplot() +
+  geom_line(aes(year,rel_est, color = 'Estimado'), size = 2) +
+  geom_point( data = cpue_trend, aes(Year,delta_cpue, color = 'Observado'), size = 2) +
+  ylab('Abundancia') +
+  xlab('Año') +
+  scale_fill_discrete(name = 'Fuente') + 
+  pres_theme + 
+  scale_color_discrete(guide = F)
+```
+
+
+```{r}
+
+cortina_abundance_index <- abundancia %>% 
+  filter(cpue_type == 'per trip') %>% 
+  select(year,trans_est,trans_lower, trans_upper ) %>% 
+  rename(abundance_index = trans_est, lower_95_ci = trans_lower, upper_95_ci = trans_upper)
+
+write.csv(file = 'cortina_abundance_index.csv', cortina_abundance_index)
+
+```
+
+
+
+
+

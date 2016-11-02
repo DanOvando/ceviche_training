@@ -19,7 +19,6 @@ ChitaPars@BinWidth <- 1
 
 #load lfreq catch data
 # setwd("C:/Code_Files/DLM_SNAP/Chita_Rawfiles")
-datdir=
 
 Lens <- new("LB_lengths", LB_pars=ChitaPars, file='chita assessment data/LFreq_Cortina_LBSPR.csv', dataType="freq", header=TRUE)
 

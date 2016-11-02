@@ -1,42 +1,104 @@
 ---
 title: "LBSPR"
-output: html_document
+output:
+  html_document: default
 runtime: shiny
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, message = F, warning = F)
+
 ```
 
-# Usando Tamaños para Evaluaciones de Pesquerias
+# Usando Tamaños para Evaluaciones de Pesquerías
 
-Shiny illustration if you can hack it
+La ciencia de pesquerías empezó con en pregunta simple:
 
-# Length Based SPR
+**Por que varían tanto capturas?**
 
-```{r, eval=F}
+Comunidades en el norte de Inglaterra eran dependientes en pesquerías, pero en algunos años los peses nunca llegaron.
 
-devtools::install_github('AdrianHordyk/LBSPR', build_vignettes = T)
+Esto empezó una linea de investigación que persiste hoy día
+
+Mucho de los esfuerzos en la ciencia de pesquerías fueron enfocados en colectando capturas y tratando de entender por que el volumen total cambiaba tanto, con explicaciones desde sobrepesca a migraciones
+
+Hoy día también, mucho de los esfuerzos do pesquerías tienen como su basis capturas totales, para dar una idea de la escala de la pesquería
+
+Pero, el analices de tamaños también tiene una historia largo
+
+Empezó con el "small plaice problem". Pescadores y gerentes notaron que las pesquerías de Inglaterra estaban capturando mas y mas plaice pequeños
+
+La pregunta que empezó de ser preguntado fue, por que esto era malo?
+
+Habían dos hipótesis generales:
+
+  * Era malo por que los peses serian mas valerosos si los pesqueros los dejarían crecer mas
+
+  * Era malo por que los peces fueran capturados antes que podrían reproducir, y entonces los pescadores estaban dañando los numeres de peses en el futuro
+
+Estos dos problemas corresponden en la idea de "yield per recruit" (YPR, rendimiento por recluta) y spawning potential ratio (SPR, potencial reproductivo)
+
+Sobre tiempo, so descubro que YPR y SPR los dos eran importante, pero de diferentes niveles en diferentes especias.
+
+Para nosotros, lo que es importante es que estos ideas empezó el concepto que no solo importaba la cantidad de peses capturado, pero también los tamaños
+
+## Métodos "data limited"
+
+La idea que la distribución de tamaños nos puede dar información sobre niveles de mortalidad por pesca es muy viejo, con publicaciones en los 1950s y menciones mas antes de eso
+
+Pero, el enfoque ha sido en usando tamaños juntos con capturas y CPUE para crear "integrated stock assessments"
+
+Recientemente, ha sido un "rennaisance" en ideas y métodos para explotar solo tamaños para evaluar pesquerías, por que en muchos casos no es factible colectar capturas totales, o CPUE.
+
+La idea detrás de estos métodos "data limited" es usar supuestos o datos de otros pesquerías (metodos "Robin Hood") para llenar huecos en la información provenido por solo tamaños.
+
+De este manera, podemos inferir el estado de pesquerias usando solo tamaños (junto con información sobre biología), pero a un precio de incertidumbre y sesgos
+
+Hoy vamos a explorar un método, que se llama "Length Based SPR" (LBSPR)
+
+# LBSPR
+
+La idea detrás de esto es básico
+
+  * Observar muestras de tamaño de una pesquería
+  * Colectar datos biológicos sobre la especia
+  * Condicional en esos datos biológicos, que mortalidad por pesca y selectividad producirá los tamaños observados?
+
+Hordyk A, Ono K, Valencia S, Loneragan N, Prince J. A novel length-based empirical estimation method of spawning potential ratio (SPR), and tests of its performance, for small-scale, data-poor fisheries. ICES J Mar Sci J Cons. 2014; fsu004. doi:10.1093/icesjms/fsu004
+
+Hordyk A, Ono K, Prince JD, Walters CJ. A simple length-structured model based on life history ratios and incorporating size-dependent selectivity: application to spawning potential ratios for data-poor stocks. Can J Fish Aquat Sci. 2016; doi:10.1139/cjfas-2015-0422
+
+Exploramos la idea aquí:
+
+```{r, eval=T, echo = F}
+#devtools::install_github('AdrianHordyk/LBSPR', build_vignettes = T)
 ```
-
 
 ```{r}
+# devtools::install_github('AdrianHordyk/LBSPR', build_vignettes = T)
+# devtools::install_github('DanOvando/simfish_package', build_vignettes = T)
 
+set.seed(42)
 library(LBSPR)
 library(shiny)
 library(tidyverse)
 library(stringr)
 library(scales)
 library(gridExtra)
+library(simfish)
+library(ggthemes)
+
+pres_theme <-theme_bw(base_size = 24, base_family = 'Helvetica') +   theme(panel.border = element_rect(color = 'black', size = 2),
+        legend.key.height = unit(2, units = 'cm'),
+        legend.key.width = unit(0.75, units = 'cm'))
 
 simfun <- function(FM = 0, SL50 = 50, SL95 = 65) {
-  
+
 MyPars <- new("LB_pars")
 
-MyPars@Linf <- 100 
-MyPars@L50 <- 66 
+MyPars@Linf <- 100
+MyPars@L50 <- 66
 MyPars@L95 <- 70
-MyPars@MK <- 1.5 
+MyPars@MK <- 1.5
 
 MyPars@SL50 <- MyPars@Linf * (SL50/100)
 MyPars@SL95 <- MyPars@Linf * (SL95/100)
@@ -45,34 +107,32 @@ MyPars@BinWidth <- 5
 
 MySim <- LBSPRsim(MyPars)
 
-
-spr_plot <- MySim@SPR %>% 
-  as_data_frame() %>% 
-ggplot() + 
+spr_plot <- MySim@SPR %>%
+  as_data_frame() %>%
+ggplot() +
   geom_bar(aes(0,value, fill = value),stat = 'identity', alpha = 0.75) +
     geom_bar(data = data_frame(0,val = 1), aes(0,val), stat = 'identity', color = 'black', fill = 'transparent') +
-  scale_fill_gradient2(guide = F, low = '#ED4209', mid = 'white', high = '#5CA3E6', midpoint = 0.4, limits = c(0,1)) + 
-  scale_y_continuous(name = 'SPR', labels = percent, limits = c(0,1)) + 
-  geom_hline(aes(yintercept = 0)) + 
-  theme_gray(base_size = 24) + 
+  scale_fill_gradient2(guide = F, low = '#ED4209', mid = 'white', high = '#5CA3E6', midpoint = 0.4, limits = c(0,1)) +
+  scale_y_continuous(name = 'SPR', labels = percent, limits = c(0,1)) +
+  geom_hline(aes(yintercept = 0)) +
+  theme_grey(base_size = 24) +
   theme(axis.ticks.x = element_blank(),
         axis.text.x = element_blank(),
         axis.title.x = element_blank())
-  
 
-len_plot <- MySim@pLPop %>% 
-  as_data_frame() %>% 
-  gather('var','value',-LMids) %>% 
-    filter(str_detect(var,'Pop')) %>% 
-    ggplot(aes(LMids,value)) + 
-  geom_vline(aes(xintercept = MyPars@L50), linetype = 'longdash') + 
+
+len_plot <- MySim@pLPop %>%
+  as_data_frame() %>%
+  gather('var','value',-LMids) %>%
+    filter(str_detect(var,'Pop')) %>%
+    ggplot(aes(LMids,value)) +
+  geom_vline(aes(xintercept = MyPars@L50), linetype = 'longdash') +
     geom_area(aes(fill = var), alpha = 0.75, position = 'dodge',
-              color = 'black') + 
-  xlab("Tamaño (cm)") + 
-  scale_y_continuous(labels = percent, name = 'Porcentaje de Poblacion', limits = c(0,.2)) + 
-    scale_fill_brewer(palette = 'Dark2', name = '', labels = c('Con Pesca','Sin Pesca')) + 
-    theme_gray(base_size = 24)
-
+              color = 'black') +
+  xlab("Tamaño (cm)") +
+  scale_y_continuous(labels = percent, name = 'Porcentaje de Poblacion', limits = c(0,.2)) +
+    scale_fill_brewer(palette = 'Dark2', name = '', labels = c('Con Pesca','Sin Pesca')) +
+    theme_grey(base_size = 24)
 
 lay_mat <- matrix(c(1,2,2,2), nrow = 1, ncol = 4)
 
@@ -87,7 +147,7 @@ inputPanel(
   label = "Mortalidad por Pesca",
   min = 0,
   max = 2,
-  value = 1,
+  value = 0,
   step = 0.2
   ),
 
@@ -111,40 +171,957 @@ renderPlot({
 
 ```
 
+  * Que datos necesitamos para hacer esto?
+    * tamaños
+    * crecimiento
+    * ...
 
-
-## Reintroducion a SPR
-
-## Que son las cosas que cambian SPR?
-
-## La idea detras de LBSPR
-
-Assumptions!
+  * Que supuestos requiere esto?
 
 # El `lbspr` Paquete
 
-Downloading
+Vamos ahora a practicar usando LBSPR nuestros mismo.
 
-Using
+Adrian Hordyk ha creado un paquete para ayudar con este proceso
 
-Etc
+```{r, eval=F, echo = T}
+devtools::install_github('AdrianHordyk/LBSPR', build_vignettes = T)
+library(LBSPR)
+```
 
-## Ejemplos de LBSPR
+Todavía esta en desarrollo, pero nos da un buen lugar para empezar.
 
-## Ejercisios
+`LBSPR` tiene mucho mandos útiles para nosotros. Vamos a empezar explorando los parámetros del modelo
 
-Use LBSPR to make fake data
+```{r, echo=T}
+MyPars <- new("LB_pars")
+```
 
-USE LBSPR to fit the model
+Este parte es probablamente los mas confuso.
 
-Examine outputs
+`LBSPR` use un tipo de data customizado
 
-# Usando LBSPR
+```{r echo = T}
 
-## Examine Datos
+slotNames(MyPars)
 
-Pull in and plot length data. Discussion of whats in whats out
+```
 
-## Apply LBSPR to Datos
+Pones datos sobre la especia adentro de estos objetos, usando `@`
 
-# Discuss!
+Podemos dar nuestro especia un nombre con
+
+```{r, echo = T}
+
+MyPars@Species <- 'pes azul'
+
+```
+
+
+Por ejemplo, para decir que el tamaño asymtotico es 100cm, hacemos
+
+```{r, eco = T}
+MyPars@Linf <- 100
+```
+
+`LBSPR` puede calcular algunos datos si no tienes, pero es importante verificar que los datos creados son razonables.
+
+Pero, hay algunos parámetros que se necesitan para crear un simulación de un población.
+
+`L50/L95`: el tamaño a 50%/95% madurez sexual
+```{r, echo = T}
+MyPars@L50 <- 66
+MyPars@L95 <- 70
+```
+
+MK: el radio de mortalidad natural a el parámetro de crecimiento Von Bertalanffy
+
+```{r, echo = T}
+MyPars@MK <- 1.5
+```
+
+Este parámetro es un poco difícil, pero hay ayuda por
+
+Prince J, Hordyk A, Valencia SR, Loneragan N, Sainsbury K. Revisiting the concept of Beverton��–Holt life-history invariants with the aim of informing data-poor fisheries assessment. ICES J Mar Sci J Cons. 2014; fsu011. doi:10.1093/icesjms/fsu011
+
+Este parámetro es importante por que nos ayuda con uno de las preguntas mas difíciles en pesquerías: que es mortalidad natural?
+
+También necesitamos selectividad a 50%/95% (`SL50`/`SL95`)
+
+```{r, echo = T}
+
+MyPars@SL50 <- 50
+MyPars@SL95 <- 55
+
+```
+
+y, una idea de mortalidad.
+
+Se puede pasar `FM` que es la proporción de mortalidad por pesca a mortalidad natural,
+
+```{r, echo = T}
+MyPars@FM <- 0
+```
+
+o SPR
+
+```{r, echo = T}
+
+MyPars@SPR <- 1
+
+```
+
+Con estos parámetros, podemos usar el función `LBSPRsim` para simular un población de peses con esos parámetros
+
+```{r, echo = T}
+
+MySim <- LBSPRsim(MyPars)
+
+MySim
+
+```
+
+Vamos a explorar los parámetros un poco.
+
+```{r, echo = T}
+
+MySim@pLPop %>%
+  as_data_frame()
+
+```
+
+Este data frame tiene algunos datos interesante.
+
+`LMids` nos dice el tamaño
+
+`PopUF`/`PopF` nos dicen la proporción de la población que es aproximadamente de ese tamaño en la población sin pesca (`UF`, unfished) y con pesca (`F`, fished)
+
+`VulnUF`/`VulnF` nos dicen la proporción de la población *soseptible a pesca* que es  aproximadamente de ese tamaño en la población sin pesca (`UF`, unfished) y con pesca (`F`, fished)
+
+**Recuerda de nuestros ejercicio de "tidy" data**
+
+Que es la problema con los datos como son?
+
+Como podemos resolver esto?
+
+```{r, echo = T}
+
+ MySim@pLPop %>%
+  as_data_frame() %>%
+  gather('var','value',-LMids)
+
+```
+
+## Ejercicios de Simulando con LBSPR
+
+* Abren a un proyecto un RStudio
+* `library(LBSPR)`
+* Practica creando poblaciones con diferentes parámetros
+* Visualiza los resultados, usando `ggplot` si quieres or cualquier método es mejor para ti
+
+# Calculando F y SPR
+
+Ahora que tenemos los herramientas para trabajar con LBSPR, vamos a ver como podemos usar este información para estimar el mortalidad por pesca
+
+Primero, vamos a crear una población con parámetros conocidos para el pes "babelfish"
+```{r}
+
+babel_pars <- new("LB_pars")
+babel_pars@Species <- "babelfish"
+
+babel_pars@Linf <- 100
+babel_pars@L50 <- 66
+babel_pars@L95 <- 70
+babel_pars@MK <- 1.5
+babel_pars@SL50 <- 50
+babel_pars@SL95 <- 65
+babel_pars@BinWidth <- 1
+babel_pars@SPR <- 0.4
+
+babel <- LBSPRsim(LB_pars = babel_pars)
+
+```
+
+Ahora, nuestro objetivo: supone que observamos este distribución de tamaños tomado de la pesquería
+
+```{r, echo = F}
+
+
+lengths <-  babel@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value', -LMids) %>%
+  filter(str_detect(var, 'VulnF'))
+
+lengths %>%
+  ggplot(aes(LMids, value)) +
+  geom_vline(aes(xintercept = babel_pars@L50), linetype = 'longdash') +
+  geom_area(aes(fill = var),
+  alpha = 0.75,
+  position = 'dodge',
+  color = 'black') +
+  xlab("Tamaño (cm)") +
+  scale_y_continuous(labels = percent,
+  name = 'Porcentaje de Poblacion'
+  ) +
+  scale_fill_brewer(
+  palette = 'Dark2',
+  name = '',
+  labels = c('Con Pesca', 'Sin Pesca'),
+  guide = F
+  ) +
+  theme_gray(base_size = 24)
+
+```
+
+Si sabemos todos los parámetros biológicos, podemos estimar mortalidad y selectividad?
+
+```{r}
+
+inputPanel(
+
+  sliderInput(
+  "fm_adjust2",
+  label = "Mortalidad por Pesca",
+  min = 0,
+  max = 2,
+  value = 0,
+  step = 0.2
+  ),
+
+  sliderInput(
+  'fish_select2',
+  'Selectividad Pesquero (% de Tamaño Maximo)',
+  min = 0,
+  max = 100,
+  value = c(39, 40),
+  step = 0.5,
+  pre = '%'
+  )
+  )
+
+renderPlot({
+
+  base_babel <- LBSPRsim(LB_pars = babel_pars)
+
+  new_pars <- babel_pars
+
+  new_pars@SPR <- logical()
+
+  new_pars@FM <- input$fm_adjust2
+
+  new_pars@SL50 <- input$fish_select2[1]
+
+  new_pars@SL95 <- input$fish_select2[2]
+
+  new_babel <- LBSPRsim(LB_pars = new_pars)
+
+  new_lengths <-  new_babel@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value', -LMids) %>%
+  filter(str_detect(var, 'VulnF')) %>%
+    mutate(source = 'Proyectado')
+
+    base_lengths <-  base_babel@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value', -LMids) %>%
+  filter(str_detect(var, 'VulnF')) %>%
+      mutate(source = 'Observado') %>%
+      bind_rows(new_lengths)
+
+
+base_lengths %>%
+  ggplot(aes(LMids, value)) +
+  geom_vline(aes(xintercept = babel_pars@L50), linetype = 'longdash') +
+  geom_area(aes(fill = source),
+  alpha = 0.75,
+  position = 'dodge',
+  color = 'black') +
+  xlab("Tamaño (cm)") +
+  scale_y_continuous(labels = percent,
+  name = 'Porcentaje de Poblacion'
+  ) +
+  scale_fill_brewer(
+  palette = 'Dark2',
+  name = ''
+  ) +
+  theme_gray(base_size = 24)
+
+})
+
+
+
+```
+
+
+Vamos a usar un método simple: "sum of squares" (suma de cuadrados)
+
+La idea aquí es básico:
+
+$$min\sum_{t=0}^{t=Linf} (length_t^{observado} - length_t^{predicho } )^2$$
+
+Vamos a tratar de minimizar el suma de cuadrados, cambiando en este caso `F/M`.
+
+Nuestro objetivo es encontrar el `F/M` que nos de el SS mas pequeño.
+
+LBSPR es mas o menos básico: Encuentra el
+
+```{r, echo = F}
+
+
+find_f <- function(fm, lengths, pars){
+
+  pars@SPR <- logical()
+
+  pars@FM <- fm
+
+  guess_pop <- LBSPRsim(pars)
+
+  guess_lengths <-  guess_pop@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value',-LMids) %>%
+  filter(str_detect(var, 'VulnF')) %>%
+  rename(predicted = value) %>%
+  select(-var)
+
+  comparison <- lengths %>%
+  left_join(guess_lengths, by = 'LMids') %>%
+  mutate(squared_error = (value - predicted) ^ 2) %>%
+  summarise(ss = sum(squared_error))
+
+  out <- comparison$ss
+
+  return(out)
+
+}
+
+possible_fm <- seq(0,2, by = 0.1)
+
+test <-  lapply(possible_fm, find_f, lengths = lengths, pars = babel_pars) %>%
+  unlist()
+
+data_frame('F/M' = possible_fm, 'SS' = test) %>%
+  ggplot(aes(`F/M`, SS)) +
+  geom_point(shape = 21, size = 4, aes(fill = log(`SS`))) +
+  scale_fill_continuous(high = 'blue', low = 'red' ) +
+  ylab('Suma de Cuadrados') +
+  geom_vline(aes(xintercept = babel@FM), color = 'black', linetype = 2) +
+  pres_theme
+```
+
+No malo! Podríamos estimar el valor casi exactamente con un poco mas trabajo.
+
+Ahora, que pasa si no sabemos F/M ni el SEL50. Por ejemplo, quizás sabemos con certidumbre el tamaño que pescadores definitivamente capturan, pero no sabemos a que tamaño empiezan a capturar.
+
+Hacemos el mismo minimizacion de SS, pero ahora buscando sobre `F/M` y `SL50`
+
+```{r}
+
+lengths <-  babel@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value', -LMids) %>%
+  filter(str_detect(var, 'VulnF'))
+
+find_f <- function(i,guess_pars, lengths, pars){
+
+  pars@SPR <- logical()
+
+    pars@FM <- guess_pars$fm[i]
+
+  pars@SL50 <- pars@SL95 - guess_pars$sl_delta[i]
+
+  guess_pop <- LBSPRsim(pars)
+
+  guess_lengths <-  guess_pop@pLPop %>%
+  as_data_frame() %>%
+  gather('var', 'value',-LMids) %>%
+  filter(str_detect(var, 'VulnF')) %>%
+  rename(predicted = value) %>%
+  select(-var)
+
+  comparison <- lengths %>%
+  left_join(guess_lengths, by = 'LMids') %>%
+  mutate(squared_error = (value - predicted) ^ 2) %>%
+  summarise(ss = sum(squared_error))
+
+  out <- comparison$ss
+
+  return(out)
+
+}
+
+possible_fm <- seq(0,2, by = 0.1)
+
+possible_sel <- seq(0.1, 20, length.out = 10)
+
+guesses <- expand.grid(fm = possible_fm, sl_delta = possible_sel)
+
+test <-  lapply(1:dim(guesses)[1], find_f, guess_pars = guesses,lengths = lengths, pars = babel_pars) %>%
+  unlist()
+
+guesses$ss <- test
+
+guesses %>%
+  mutate(SL50 = babel_pars@SL95 - sl_delta) %>%
+  ggplot(aes(fm, SL50)) +
+  geom_raster(aes(fill = log(ss)), interpolate = T) +
+  geom_contour(aes(z = log(ss)), color = 'white', alpha = 0.5) +
+  scale_fill_continuous(high = 'blue', low = 'red' ) +
+  coord_cartesian(expand = F) +
+  pres_theme +
+  theme(panel.border = element_rect(color = 'black', size = 2),
+        legend.key.height = unit(2, units = 'cm'),
+        legend.key.width = unit(0.75, units = 'cm')) +
+  ylab('SL50 (cm)') +
+  xlab('F/M') +
+  geom_vline(aes(xintercept = babel@FM), color = 'black', linetype = 2) +
+  geom_hline(aes(yintercept = babel@SL50), color = 'black', linetype = 2)
+
+```
+
+Todavía no malo, y esto es por fuerza de mano. Pero, se puede ver que la incertidumbre crece un poco.
+
+Esto seria ya mas difícil si no sabíamos selectividad o mortalidad.
+
+A ese punto es cuando `LBSPR` es mas útil (también, estos datos claramente son fácil para estimar por que por definición cumplen con los supuestos del modelo).
+
+Vamos a ver como usar `LBSPR` para encontrar selectividad y mortalidad.
+
+# Usando `LBSPR` para Estimaciones
+
+Todavía vamos a trabajar con datos falsos por el momento.
+
+Supone que tenemos los característicos biológicos de nuestro babelfish, y vamos al muelle.
+
+Colectamos los de capturas por tamaño sobre algunos años
+
+```{r}
+datdir <- DataDir()
+
+Len2 <- new("LB_lengths", LB_pars=MyPars, file=paste0(datdir, "/LFreq_MultiYrHead.csv"), dataType="freq", header=TRUE)
+
+Len2@LData %>%
+  as_data_frame() %>%
+  mutate(LMids = Len2@LMids) %>%
+  gather(year, capturado,-LMids) %>%
+  ggplot(aes(LMids, capturado)) +
+  geom_vline(aes(xintercept = babel_pars@L50), linetype = 2) +
+  geom_bar(stat = 'identity', position = 'dodge', fill = 'steelblue2', color = 'black',
+           alpha = 0.75) +
+  facet_wrap(~year) +
+  pres_theme
+
+```
+
+Que podríamos adivinar de la condición de este pesquería no mas mirando estos datos?
+
+Con estos datos, es muy fácil usar `LBSPR` para estimar SPR
+
+```{r, echo=T}
+
+myFit1 <- LBSPRfit(babel_pars, Len2)
+
+myFit1
+```
+
+Bueno, tenemos resultados. Miramos los un poco
+
+```{r}
+
+
+myFit1@Ests %>%
+  as_data_frame() %>%
+  mutate(year = myFit1@Years) %>%
+  gather(var, estimate, -year) %>%
+  ggplot(aes(year, estimate, fill = var)) +
+  geom_point(shape = 21, size = 4) +
+  scale_fill_discrete(guide = F) +
+  facet_grid(var ~. , scales = 'free_y') +
+  pres_theme
+
+```
+
+`LBSPR` tiene muchos funciones para visualizar sus resultados
+
+```{r, echo = T}
+plotSize(myFit1)
+```
+
+Podemos ver los incertidumbres estimados usando plotEsts
+
+```{r, echo=T}
+plotEsts(myFit1)
+```
+
+Que es la supuesta implícito en presentado resultados año por año?
+
+# Sensitividad de `LBSPR`
+
+A este punto hemos estado usando datos simulados con los supuestos de LBSPR.
+
+Que pasa si esos supestos son violados?
+
+Vamos a usar otro modelo para generar algunos datos, y ver si LBSPR todavía funciona.
+
+Para recordernos, como es la forma de dependencia de densidad en peses?
+
+```{r}
+
+  steepness <-  0.9
+
+  alpha <- ((babel_pars@R0 * 10)/babel_pars@R0)*(1-steepness)/(4*steepness)
+  beta <- (5*steepness-1)/(4*steepness*babel_pars@R0)
+
+  ssb_seq <- seq(0,babel_pars@R0 * 10, by = 100)
+
+  recruits <- ssb_seq/(alpha+(beta*ssb_seq))
+
+  rec_plot <- data_frame(SSB = ssb_seq, Reclutamiento = recruits) %>%
+    ggplot(aes(SSB, Reclutamiento)) +
+    geom_point() +
+    pres_theme
+  
+  rec_plot
+
+```
+
+Para empezar, vamos a simular otro situación sin variación en reclutamiento
+
+
+```{r strain lbspr}
+
+strain_lbspr <- function(sigma_recruits = 0, ac_recruits = 0){
+
+simmed_fish <- simfish( sigmaRn = sigma_recruits,
+                       sigmaRs = sigma_recruits, recruit_ac = ac_recruits)
+
+len_dat <- simmed_fish$length_data %>%
+  as_data_frame() %>%
+  group_by(year,LengthBinsMid,lenfreq_type) %>%
+  summarise(num_observado = sum(numbers))
+
+
+recruits <- simmed_fish$recruits %>%
+  group_by(year) %>%
+  summarise(recs = sum(recruits))
+
+ssb_dat <- simmed_fish$biomass_data %>%
+  filter(biomass_type == 'ss') %>%
+  group_by(year) %>%
+  summarise(ssb = sum(biomass)) %>%
+  left_join(recruits, by = 'year')
+
+ssb_v_rec_plot <- ssb_dat %>%
+  ggplot(aes(ssb,recs)) +
+  geom_point(shape = 21, fill = 'steelblue2', size = 4) +
+  xlab('Potencial Reproductivo') +
+  ylab('Reclutamiento')
+
+rec_plot <- recruits %>%
+  ggplot(aes(year,recs)) +
+  geom_point(shape = 21, fill = 'steelblue2', size = 4) +
+  xlab('Año') +
+  ylab('Reclutamiento')
+
+simfish_lengths <- len_dat %>%
+  rename(LMids = LengthBinsMid) %>%
+  filter(lenfreq_type == 'catch') %>%
+  select(LMids,year,num_observado) %>%
+  spread(year,num_observado) %>%
+  ungroup() %>%
+  mutate(LMids = round(LMids,1))
+
+babel_lengths <- new("LB_lengths")
+
+babel_lengths@LMids <- simfish_lengths$LMids
+
+babel_lengths@LData <- simfish_lengths %>% select(-LMids) %>% as.matrix()
+
+babel_lengths@Years <- as.numeric(simfish_lengths %>% select(-LMids) %>% colnames())
+
+babel_lengths@NYears <- length(babel_lengths@Years)
+
+babel_pars <- new("LB_pars")
+
+babel_pars@Species <- "babelfish"
+
+babel_pars@Linf <- simmed_fish$Fish$Linf
+
+babel_pars@L50 <- mean(simmed_fish$Fish$mat50)
+
+babel_pars@L95 <-  mean(simmed_fish$Fish$mat95)
+
+babel_pars@MK <- simmed_fish$Fish$MvK
+
+babel_pars@BinWidth <- 1
+
+babel_fit <- LBSPRfit(babel_pars, babel_lengths, msg = F)
+
+comp <- data_frame(real = simmed_fish$spr$SPR, lbspr = as.numeric(babel_fit@SPR)) %>%
+  mutate(year = babel_lengths@Years) %>%
+  gather('source','SPR', -year)
+
+spr_comp_plot <- comp %>%
+  ggplot(aes(year,SPR, color = source)) +
+  geom_line(size = 2) +
+  scale_y_continuous(limits = c(0,NA))
+
+comp <- data_frame(real = simmed_fish$f_trend$real_f / simmed_fish$f_trend$real_m , lbspr = babel_fit@Ests[,'FM']) %>%
+  mutate(year = babel_lengths@Years) %>%
+  gather('source','F/M', -year)
+
+fvm_comp_plot <- comp %>%
+  ggplot(aes(year,`F/M`, color = source)) +
+  geom_line(size = 2) +
+  scale_y_continuous(limits = c(0,NA))
+
+
+return(list(spr_comp_plot = spr_comp_plot, fvm_comp_plot = fvm_comp_plot,
+            recruits = simmed_fish$plots$recruits_plot,
+       ssb_v_rec_plot = ssb_v_rec_plot,
+       rec_plot = rec_plot))
+}
+
+no_strain <- strain_lbspr()
+
+
+```
+
+```{r}
+no_strain$ssb_v_rec_plot +
+  pres_theme
+
+no_strain$rec_plot +
+  pres_theme +
+  ylab('Reclutamiento')
+```
+
+
+Vemos que reclutamiento y potencial reproductivo con deterministico, por en relación de Beverton-Holt.
+
+Y como funciona `LBSPR`?
+
+```{r}
+
+no_strain$spr_comp_plot +
+  pres_theme +
+  xlab('Año')
+
+no_strain$fvm_comp_plot +
+  pres_theme +
+  xlab('Año')
+
+```
+
+Mas o menos.
+
+SPR es correcto casi inmediatamente
+
+Pero, F/M es completamente incorrecto por los primeros 20 años!
+
+Esto ilustra las problemas con usando `LBSPR` si la población no esta en equilibrio
+
+Ahora, vamos a estrenar los supuestos de `LBSPR`
+
+Vamos a añadir variación y autocorelacion a reclutamiento
+
+```{r}
+
+plenty_strain <- strain_lbspr(sigma_recruits = .25, ac_recruits = 0.5)
+
+plenty_strain$ssb_v_rec_plot +
+  pres_theme
+
+plenty_strain$rec_plot +
+  pres_theme +
+    ylab('Reclutamiento')
+
+```
+
+Vemos ahora que quizás todavía hay un relación Beverton-Holt, pero es mucho menos claro
+
+También vemos can reclutamiento a estado subiendo recientemente
+
+Y que pasa a `LBSPR`?
+
+```{r}
+
+plenty_strain$spr_comp_plot +
+  pres_theme +
+  xlab('Año')
+
+plenty_strain$fvm_comp_plot +
+  pres_theme +
+  xlab('Año')
+
+```
+
+Con SPR estamos capturando los tendencias mas o menos, pero recieniente esta muy incorrecto.
+
+Con F/M estamos totalmente incorrecto
+
+Hemos introducido mucho variabilidad, pero esto no es exactamente raro.
+
+**Es muy importante pensar si los supuestos de `LBSPR` son violados!**
+
+# Aplicando a Chita
+
+Ahora, vamos a explorar los datos de Chita juntos.
+
+Empezamos entrando los datos de tallas de tamaño de Chita
+
+```{r}
+
+length_dat <- readxl::read_excel('chita_data/Size Samples (Anisotremus scapularis) PERU final.xlsx') %>%
+  as_data_frame()
+
+length_dat
+
+```
+
+1. Explora los datos. Use los tools de `dplyr` que cubrimos antes
+    * sugerencia: usa `group_by` and `summarise` para calcular los números en cada tamaño por año
+2. Cree algunos otros divisions de los datos, e.g. números en cada tamaño en cada tipo de gear
+3. Use `ggplot` o `plot` para hacer visualaciones de los datos que has escogido
+
+Ya que tenemos datos, ahora vamos a ponerlos en el formato correcto para usar en `LBSPR`
+
+Hay algunos diferentes maneras para llenar datos para usar en `LBSPR`, vamos a ver uno ahora.
+
+
+```{r}
+
+
+length_dat %>%
+  group_by(Year,`Size Range (cm)`) %>%
+  summarise(Numeros = sum(Frequency, na.rm = T)) %>%
+  ggplot(aes(`Size Range (cm)`, Numeros)) +
+  geom_vline(aes(xintercept = 21), color = 'red', linetype = 2) +
+  geom_bar(stat = 'identity', position = 'dodge', color = 'black', fill = 'steelblue2', alpha = 0.75) +
+  facet_grid(Year ~., scales = 'free_y') +
+  xlim(c(0, NA)) +
+  pres_theme
+
+```
+
+
+```{r explore length data by gear, echo = T}
+
+length_dat %>%
+  group_by(Year,Gear,`Size Range (cm)`) %>%
+  summarise(Numeros = sum(Frequency, na.rm = T)) %>%
+  ggplot(aes(`Size Range (cm)`, Numeros)) +
+  geom_vline(aes(xintercept = 21), color = 'red', linetype = 2) +
+  geom_bar(stat = 'identity', position = 'dodge', color = 'black', fill = 'steelblue2', alpha = 0.75) +
+  facet_grid( Year ~ Gear, scales = 'free_y') +
+  pres_theme
+
+```
+
+Primero, vamos a crear un nuevo objeto para poner los datos
+
+```{r, echo = T}
+
+tams <- new("LB_lengths")
+
+slotNames(tams)
+
+```
+
+Ahora vamos a popular a los 'slots'
+
+Empezamos con los `LMids`
+
+Vamos a escoger los tallas promedios de cada "bin", y poner esos allí.
+
+Sugerencia: use `unique` para entrar los datos
+
+```{r, echo = T}
+
+length_mids <- seq(1,70, by = 1)
+
+tams@LMids <- length_mids
+
+```
+
+Ahora, necesitamos un matrix con numero de filas = el numero do "bins" de tallas.
+
+Miramos los datos por un momento: que es la problema con que tenemos?
+
+```{r, echo = T}
+
+years <- sort(unique(length_dat$Year))
+
+length_bins <- expand.grid(LMids = length_mids, Year = years)
+
+chita_lengths <- length_dat %>%
+  rename(LMids = `Size Range (cm)`) %>%
+  select(LMids,Year,Frequency)
+
+chita_lengths <- length_bins %>%
+  left_join(chita_lengths, by = c('LMids','Year'))
+
+
+chita_lengths <- chita_lengths %>%
+  group_by(LMids, Year) %>%
+  summarise(numeros = sum(Frequency, na.rm = T)) %>%
+  ungroup() %>%
+  spread(Year,numeros) %>%
+  ungroup() %>%
+  select(-LMids) %>%
+  as.matrix()
+
+chita_lengths[is.na(chita_lengths)] <- 0
+
+tams@LData <- chita_lengths
+
+```
+
+Los años que tienen
+
+```{r, echo = T}
+
+tams@Years <- sort(unique(length_dat$Year))
+
+```
+
+y por fin el numero de años
+
+```{r, echo = T}
+
+tams@NYears <- length(unique(length_dat$Year))
+
+```
+
+Ahora que tenemos los datos de tamaño listo para `LBSPR`
+
+Todavía necesitamos biología!
+
+```{r, echo = T}
+
+chita_pars <- new("LB_pars")
+
+chita_pars@Species<-"Chita"
+chita_pars@Linf <- 61.44
+chita_pars@L50 <- 21
+chita_pars@L95 <- 25
+chita_pars@MK <- 2.4
+chita_pars@BinWidth <- 1
+
+
+```
+
+Y ahora estamos listos para usar `LBSPR`
+
+```{r, echo = T}
+
+chita_fit <- LBSPRfit(chita_pars, tams)
+
+```
+
+```{r}
+
+plotEsts(chita_fit)
+
+```
+
+Que decisiones hemos hecho?
+
+## Ejercicios de `LBSPR`
+
+  1. Juega con visualizando los datos de tamaños
+  2. Decide como quieres agregar los datos de tamaños
+      * Todos años? Todos regiones? Todos artes de pesca?
+  3. Core `LBSPR`
+  4. Mira los resultados
+  5. Compara los resultados con diferentes supuestos de datos
+
+# Puntos de Referencia y SPR
+
+Como interpretamos los valores de SPR que obtenemos?
+
+Que es bueno?
+
+Que is malo?
+
+```{r}
+
+steep_foo <- function(steepness = 0.6, pars)
+{
+
+eq_pars <- pars
+
+sprs <- seq(0.1,1, by = 0.1)
+
+pars@SL50 <- 1
+
+pars@SL95 <- 2
+
+pars@Steepness <- steepness
+
+  alpha <- ((pars@R0 * 10)/pars@R0)*(1-steepness)/(4*steepness)
+  beta <- (5*steepness-1)/(4*steepness*pars@R0)
+
+  ssb_seq <- seq(0,pars@R0 * 10, by = 100)
+
+  recruits <- ssb_seq/(alpha+(beta*ssb_seq))
+
+  rec_plot <- data_frame(SSB = ssb_seq, Reclutamiento = recruits) %>%
+    ggplot(aes(SSB, Reclutamiento)) +
+    geom_point() +
+    pres_theme
+
+spr_foo <- function(spr,pars){
+
+  pars@SPR <- spr
+
+  babel <- LBSPRsim(LB_pars = pars)
+
+  out <- data_frame(spr = babel@SPR, fm = babel@FM, yield = babel@Yield)
+
+  return(out)
+}
+
+spr_v_yield <- lapply(sprs, spr_foo, pars = pars) %>%
+  bind_rows()
+
+spr_v_yield_plot <- spr_v_yield %>%
+  ggplot(aes(spr,yield, fill = factor(round(fm,1)))) +
+  geom_hline(aes(yintercept = 0)) +
+    geom_point(shape = 21, size = 6) +
+  scale_fill_brewer(name = 'F/M',palette = 'YlOrRd') +
+  xlab('SPR') +
+  ylab('Rendimiento') +
+  pres_theme +
+  theme(legend.key.height = unit(1, units = 'cm')) +
+  coord_cartesian(xlim = c(0,1))
+
+rec_plot
+
+spr_v_yield_plot
+
+laymat = matrix(c(1,1,2,2), nrow = 4, ncol = 1)
+
+grid.arrange(rec_plot, spr_v_yield_plot,
+             nrow = 2, ncol = 1)
+
+# return(list(rec_plot = rec_plot, spr_v_yield_plot = spr_v_yield_plot))
+}
+
+inputPanel(
+  sliderInput(
+  "h",
+  label = "Steepness",
+  min = 0.2,
+  max = .99,
+  value = .6,
+  step = 0.025
+  ))
+
+renderPlot({
+  steep_foo(steepness = input$h, pars = babel_pars)
+
+}, height = 750)
+
+```
+
+**Gracias!**

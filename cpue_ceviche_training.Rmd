@@ -62,7 +62,7 @@ La problema aquí es que si tenemos ańos de *CPUE* datos, y tratamos de inferir
 
 Se puede ver que si CPUE cambia sobre tiempo, hay dos posibilidades que pueden explicar esto: 
 
-**biomasa esta cambiando **o** *q* esta cambiando**
+**biomasa esta cambiando o q esta cambiando**
 
 ## Ejemplo
 
@@ -352,7 +352,7 @@ Esto no sueno muy complicado, pero es muy poderoso
 
 ```{r,echo=T}
 
-peces <- read.csv(file = 'data/datos_desordenados.csv', stringsAsFactors = F)
+peces <- read.csv(file = 'datos para cpue/datos_desordenados.csv', stringsAsFactors = F)
 
 as_data_frame(peces)
 ```
@@ -581,7 +581,7 @@ Después de esto, vamos a ver como connector los manipulaciones de `dplyr` con l
 
 ```{r}
 
-capturas <- read_csv(file = 'data/capturas.csv')
+capturas <- read_csv(file = 'datos para cpue/capturas.csv')
 
 capturas <- capturas  %>%
   gather(`1950`:`2012`, key = 'year', value = 'capturas') %>%
@@ -993,7 +993,7 @@ Ahora tenemos coeficientes en una forma mucho mas útil para nosotros.
 
 Como interpretamos los diferentes variables aquí?
 
-Muchas veces, el propósito de un modelo es para hacer predicciones. Podemos hacer esto con la función `predict`
+Muchas veces, el propósito de un modelo es para hacer predichos Podemos hacer esto con la función `predict`
 
 ```{r, echo = T}
 
@@ -1074,6 +1074,114 @@ chita_cpue <- chita_cpue %>%
   mutate(cpue = Chita_kg / No_Fishers)
 
 ```
+```{r}
+
+chita_cpue %>% 
+  ggplot(aes(cpue)) + 
+  geom_histogram(bins = 50) + 
+  scale_y_log10() + 
+  pres_theme
+
+```
+
+```{r}
+chita_cpue %>% 
+  ggplot(aes(Year, cpue)) +
+  geom_point() + 
+  pres_theme
+  
+```
+
+```{r}
+chita_cpue %>% 
+  group_by(Year,Gear) %>% 
+  summarise(median_cpue = median(cpue, na.rm = T),
+            mean_cpue = mean(cpue, na.rm = T)) %>% 
+  ggplot(aes(Year, mean_cpue)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~Gear, scales = 'free_y') + 
+  pres_theme
+  
+```
+
+
+
+
+```{r}
+chita_cpue %>% 
+  ggplot(aes(factor(Year), cpue)) +
+  geom_boxplot() + 
+  scale_y_log10() + 
+  pres_theme
+  
+```
+
+
+```{r}
+chita_cpue %>% 
+  group_by(Year) %>% 
+  summarise(median_cpue = median(cpue, na.rm = T)) %>% 
+  ggplot(aes(Year, median_cpue)) +
+  geom_point() + 
+  geom_smooth() + 
+  pres_theme
+  
+```
+```{r}
+chita_cpue %>% 
+  group_by(Year) %>% 
+  summarise(total_catch = sum(Chita_kg, na.rm = T)) %>% 
+  ggplot(aes(Year, total_catch)) +
+  geom_point() + 
+  geom_smooth() + 
+  pres_theme
+```
+
+```{r}
+chita_cpue %>% 
+  group_by(Year) %>% 
+  ggplot(aes(factor(Year),fill = Gear)) + 
+  geom_bar() +
+  pres_theme
+```
+
+```{r}
+
+chita_cpue %>% 
+  group_by(Year) %>% 
+  summarise(num_trips = length(cpue), num_fishers = sum(No_Fishers)) %>% 
+  ggplot(aes(Year,num_trips)) + 
+  geom_point() + 
+  pres_theme
+
+```
+
+```{r}
+
+chita_cpue %>% 
+  group_by(Year) %>% 
+  summarise(num_trips = length(cpue), num_fishers = sum(No_Fishers)) %>% 
+  ggplot(aes(Year,num_fishers)) + 
+  geom_point() + 
+  pres_theme
+
+```
+```{r}
+
+chita_cpue %>% 
+  group_by(Year) %>% 
+  summarise(num_trips = length(cpue), num_fishers = sum(No_Fishers), mean_hold = mean(Hold_Capacity_kg, na.rm = T)) %>% 
+  ggplot(aes(Year,mean_hold)) + 
+  geom_point() + 
+  pres_theme
+
+```
+
+
+Y como siempre, graficos!
+
+
 
 Vamos a explorar la idea rápidamente aquí, y entonces tratar de hacer esto solo.
 
@@ -1329,3 +1437,12 @@ Se que eso fue mucho... En resumen
   7. Hace gráficos de los resultados
   8. Construye por lo menos un modelo alternativo (usando otros variables independientes)
   9. Compare los resultados
+  
+  
+```{r, echo=T}
+
+dat <- read_csv(file = "chita_data/Daily Catch_Effort (Anisotermus scapularis) PERU 2001-2015.csv")
+
+dat
+
+```
